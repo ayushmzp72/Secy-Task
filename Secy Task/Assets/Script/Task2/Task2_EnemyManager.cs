@@ -6,13 +6,15 @@ public class Task2_EnemyManager : MonoBehaviour
 {
     [Header("Detection")]
     public float detectionRange = 5f;
+    public float alertRange = 10f;
     public LayerMask playerLayer;
 
     [Header("Movement")]
     public float moveSpeed = 3f;
-
+    public float chaseSpeed = 5f;
     [Header("References")]
     public Transform player;
+    protected Vector3 lastKnownPlayerPosition;
 
     protected Rigidbody2D rb;
     protected bool playerDetected;
@@ -37,26 +39,32 @@ public class Task2_EnemyManager : MonoBehaviour
 
     protected virtual void DetectPlayer()
     {
-        Collider2D hit = Physics2D.OverlapCircle(
+        Collider2D detection = Physics2D.OverlapCircle(
             transform.position,
             detectionRange,
             playerLayer
         );
 
-        if (hit != null)
+        if (detection != null)
         {
             playerDetected = true;
-            player = hit.transform;
+            player = detection.transform;
+
+            lastKnownPlayerPosition = detection.transform.position;
         }
         else
         {
-            playerDetected = false;
+            if(!isAlerted)
+            {
+                playerDetected = false;
+                // player = null;
+            }
         }
     }
 
     protected virtual void AlertNearbyEnemies()
     {
-        Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position,detectionRange);
+        Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position,alertRange);
 
         foreach (Collider2D enemy in nearbyEnemies)
         {
@@ -65,7 +73,7 @@ public class Task2_EnemyManager : MonoBehaviour
 
             if (enemyManager != null && enemyManager != this)
             {
-                enemyManager.ReceiveAlert(player.position);
+                enemyManager.ReceiveAlert(lastKnownPlayerPosition);
             }
         }
     }
@@ -73,6 +81,10 @@ public class Task2_EnemyManager : MonoBehaviour
     public virtual void ReceiveAlert(Vector3 playerPosition)
     {
         isAlerted = true;
+        playerDetected = true;
+        lastKnownPlayerPosition = playerPosition;
+        // Debug.Log($"{gameObject.name} received alert about player at {player.position}");
+        
     }
 
     protected virtual void Patrol()
@@ -82,17 +94,22 @@ public class Task2_EnemyManager : MonoBehaviour
 
     protected virtual void ChasePlayer()
     {
-        if (player == null) return;
+        Vector2 direction =(lastKnownPlayerPosition  - transform.position).normalized;
 
-        Vector2 direction =
-            (player.position - transform.position).normalized;
+        rb.velocity = new Vector2(direction.x * chaseSpeed,rb.velocity.y);
 
-        rb.velocity = new Vector2(
-            direction.x * moveSpeed,
-            rb.velocity.y
-        );
+        float distance =Vector2.Distance(transform.position,lastKnownPlayerPosition);
 
-        FlipSprite(direction.x);
+        // Reached last known position
+        if (distance < 0.5f)
+        {
+            rb.velocity = Vector2.zero;
+
+            isAlerted = false;
+            playerDetected = false;
+        }
+
+        // FlipSprite(direction.x);
     }
 
     protected virtual void ReturnToPatrol()
@@ -100,17 +117,17 @@ public class Task2_EnemyManager : MonoBehaviour
         isAlerted = false;
     }
 
-    protected virtual void FlipSprite(float directionX)
-    {
-        if (directionX > 0.1f)
-        {
-            transform.localScale = new Vector3(1, 1, 1);
-        }
-        else if (directionX < -0.1f)
-        {
-            transform.localScale = new Vector3(-1, 1, 1);
-        }
-    }
+    // protected virtual void FlipSprite(float directionX)
+    // {
+    //     if (directionX > 0.1f)
+    //     {
+    //         transform.localScale = new Vector3(1, 1, 1);
+    //     }
+    //     else if (directionX < -0.1f)
+    //     {
+    //         transform.localScale = new Vector3(-1, 1, 1);
+    //     }
+    // }
 
     protected virtual void OnDrawGizmosSelected()
     {
@@ -118,7 +135,7 @@ public class Task2_EnemyManager : MonoBehaviour
 
         Gizmos.DrawWireSphere(
             transform.position,
-            detectionRange
+            alertRange
         );
     }
 
